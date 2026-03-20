@@ -6,7 +6,6 @@ use js_sys::{Array, Function, Object};
 use minijinja::machinery::{ast::*, parse, WhitespaceConfig};
 use minijinja::syntax::SyntaxConfig;
 use minijinja::{self as mj, Error, ErrorKind, Value};
-use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use wasm_bindgen::prelude::*;
 
@@ -21,8 +20,7 @@ pub struct Environment {
 impl Environment {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        let mut inner = mj::Environment::new();
-        minijinja_contrib::add_to_environment(&mut inner);
+        let inner = mj::Environment::new();
         Self { inner }
     }
 
@@ -93,12 +91,6 @@ impl Environment {
     pub fn addTest(&mut self, name: &str, func: Function) {
         self.inner
             .add_test(name.to_string(), create_js_callback(func));
-    }
-
-    /// Enables python compatibility.
-    pub fn enablePyCompat(&mut self) {
-        self.inner
-            .set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
     }
 
     pub fn findVars(&self, source: &str) -> Vec<String> {
@@ -189,22 +181,6 @@ impl Environment {
                     collect_target_names(&s.target, scope);
                 }
 
-                Stmt::Macro(m) => {
-                    declare(scope, m.name.to_string());
-
-                    scope.push_back(BTreeSet::new());
-
-                    for arg in &m.args {
-                        declare(scope, arg.description().to_string());
-                    }
-
-                    for s in &m.body {
-                        walk_stmt(s, scope, undeclared);
-                    }
-
-                    scope.pop_back();
-                }
-
                 _ => {}
             }
         }
@@ -272,17 +248,6 @@ impl Environment {
         undeclared.into_iter().collect()
     }
 
-    /// Enables or disables debug mode.
-    #[wasm_bindgen(getter)]
-    pub fn debug(&self) -> bool {
-        self.inner.debug()
-    }
-
-    #[wasm_bindgen(setter)]
-    pub fn set_debug(&mut self, yes: bool) {
-        self.inner.set_debug(yes);
-    }
-
     /// Enables or disables block trimming.
     #[wasm_bindgen(getter)]
     pub fn trimBlocks(&self) -> bool {
@@ -328,17 +293,6 @@ impl Environment {
         Ok(())
     }
 
-    /// Configures the max-fuel for template evaluation.
-    #[wasm_bindgen(getter)]
-    pub fn fuel(&self) -> Option<u32> {
-        self.inner.fuel().map(|x| x as u32)
-    }
-
-    #[wasm_bindgen(setter)]
-    pub fn set_fuel(&mut self, value: Option<u32>) {
-        self.inner.set_fuel(value.map(|x| x as u64));
-    }
-
     /// Registers a value as global.
     #[wasm_bindgen]
     pub fn addGlobal(&mut self, name: &str, value: JsValue) -> Result<(), JsError> {
@@ -351,62 +305,6 @@ impl Environment {
     #[wasm_bindgen]
     pub fn removeGlobal(&mut self, name: &str) {
         self.inner.remove_global(name);
-    }
-
-    /// Registers a synchronous template loader callback.
-    ///
-    /// The provided function is called with a template name and must return a
-    /// string with the template source or `null`/`undefined` if the template
-    /// does not exist. Errors thrown are propagated as MiniJinja errors.
-    #[wasm_bindgen]
-    pub fn setLoader(&mut self, func: Function) {
-        let fragile_func = Fragile::new(func);
-        self.inner.set_loader(move |name| {
-            let js_name = JsValue::from_str(name);
-            let func = fragile_func.get();
-            let rv = func.call1(&JsValue::NULL, &js_name).map_err(|err| {
-                Error::new(
-                    ErrorKind::InvalidOperation,
-                    format!("loader threw error: {:?}", err),
-                )
-            })?;
-
-            if rv.is_undefined() || rv.is_null() {
-                return Ok(None);
-            }
-
-            match rv.as_string() {
-                Some(s) => Ok(Some(s)),
-                None => Err(Error::new(
-                    ErrorKind::InvalidOperation,
-                    "loader must return a string or null/undefined",
-                )),
-            }
-        });
-    }
-
-    /// Sets a callback to join template paths (for relative includes/extends).
-    ///
-    /// The callback receives `(name, parent)` and should return a joined path string.
-    /// If it throws or returns a non-string, the original `name` is used.
-    #[wasm_bindgen]
-    pub fn setPathJoinCallback(&mut self, func: Function) {
-        let fragile_func = Fragile::new(func);
-        self.inner
-            .set_path_join_callback(move |name, parent| -> Cow<'_, str> {
-                let func = fragile_func.get();
-                match func.call2(
-                    &JsValue::NULL,
-                    &JsValue::from_str(name),
-                    &JsValue::from_str(parent),
-                ) {
-                    Ok(rv) => match rv.as_string() {
-                        Some(s) => Cow::Owned(s),
-                        None => Cow::Borrowed(name),
-                    },
-                    Err(_e) => Cow::Borrowed(name),
-                }
-            });
     }
 }
 
@@ -473,8 +371,16 @@ fn js_to_mj_value(value: JsValue) -> Result<Value, JsError> {
             map.insert(js_to_mj_value(key)?, js_to_mj_value(value)?);
         }
         Ok(Value::from(map))
+    } else if let Some(s) = value.as_string() {
+        Ok(Value::from(s))
+    } else if let Some(n) = value.as_f64() {
+        Ok(Value::from(n))
+    } else if let Some(b) = value.as_bool() {
+        Ok(Value::from(b))
+    } else if value.is_null() || value.is_undefined() {
+        Ok(Value::from(()))
     } else {
-        Ok(serde_wasm_bindgen::from_value(value)?)
+        Err(JsError::new("unsupported value type"))
     }
 }
 
