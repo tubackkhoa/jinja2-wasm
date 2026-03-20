@@ -15,12 +15,12 @@
   "main": "dist/node/minijinja_js.js",
   "name": "minijinja-js",
   "bugs": {
-    "url": "https://github.com/mitsuhiko/minijinja/issues"
+    "url": "https://github.com/tubackkhoa/jinja2-wasm/issues"
   },
-  "homepage": "https://github.com/mitsuhiko/minijinja",
+  "homepage": "https://github.com/tubackkhoa/jinja2-wasm",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mitsuhiko/minijinja.git",
+    "url": "git+https://github.com/tubackkhoa/jinja2-wasm.git",
     "directory": "minijinja-js"
   },
   "keywords": [
