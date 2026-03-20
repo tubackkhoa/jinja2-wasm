@@ -37,6 +37,7 @@ minijinja = { version = "2.18.0", default-features = false, features = [
     "serde",
     "unstable_machinery",
 ] }
+minijinja-contrib = { version = "2.18.0", default-features = false }
 fragile = "2.0.0"
 js-sys = "0.3.77"
 serde-wasm-bindgen = "0.6.5"

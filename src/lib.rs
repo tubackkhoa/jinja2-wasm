@@ -20,7 +20,8 @@ pub struct Environment {
 impl Environment {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
-        let inner = mj::Environment::new();
+        let mut inner = mj::Environment::new();
+        minijinja_contrib::add_to_environment(&mut inner);
         Self { inner }
     }
 

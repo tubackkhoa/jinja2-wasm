@@ -148,6 +148,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "minijinja-contrib"
+version = "2.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c6302e47d2b51f9fc978268ff7f5a014de5caa2ad48440309fd10ee711480d7"
+dependencies = [
+ "minijinja",
+ "serde",
+]
+
+[[package]]
 name = "minijinja-js"
 version = "2.18.0"
 dependencies = [
@@ -155,6 +165,7 @@ dependencies = [
  "fragile",
  "js-sys",
  "minijinja",
+ "minijinja-contrib",
  "serde-wasm-bindgen",
  "wasm-bindgen",
  "wasm-bindgen-test",
